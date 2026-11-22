@@ -1,0 +1,33 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  verify:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        python: ['3.11', '3.13']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install -e ".[dev]" hatchling
+      - run: python -m ruff check
+      - run: python -m pytest
+      - run: python -m build --wheel --no-isolation
+      - shell: python
+        run: |
+          from pathlib import Path
+          from zipfile import ZipFile
+
+          with ZipFile(next(Path("dist").glob("*.whl"))) as wheel:
+              entries = wheel.namelist()
+          print("\n".join(entries))
+          assert all(
+              name.startswith("langmuir_probe/")
+              or ".dist-info/" in name
+              for name in entries
+          )
+          assert not any("simulat" in name.lower() for name in entries)
