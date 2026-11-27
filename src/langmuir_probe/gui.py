@@ -3,6 +3,7 @@
 from collections.abc import Callable
 from dataclasses import asdict
 from datetime import datetime, timezone
+from pathlib import Path
 from sys import argv
 
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT
@@ -321,13 +322,17 @@ class MainWindow(QtWidgets.QMainWindow):
         path, _ = QtWidgets.QFileDialog.getOpenFileName(
             self, "Open sweep", filter="CSV (*.csv)"
         )
-        if not path:
-            return
+        if path:
+            self.load_csv(path)
+
+    def load_csv(self, path: str | Path) -> None:
         try:
             self.points, self.metadata = read_csv(path)
         except (OSError, ValueError) as error:
             QtWidgets.QMessageBox.warning(self, "CSV import failed", str(error))
             return
+        self.status.setText(f"Opened CSV: {len(self.points)} points")
+        self.status.setToolTip(str(path))
         self._clear_analysis()
         self.refresh_plot()
         self._update_controls()
@@ -348,7 +353,15 @@ class MainWindow(QtWidgets.QMainWindow):
         except ValueError as error:
             self.summary.setText(str(error))
             return
-        self.summary.setText(self.result.summary())
+        result = self.result
+        self.summary.setText(
+            f"Floating potential: {result.floating_potential:.2f} V\n"
+            f"Plasma potential: {result.plasma_potential:.1f} V\n"
+            f"Ion current: {result.ion_current * 1e6:.2f} µA\n"
+            f"Te: {result.electron_temperature:.2f} ± "
+            f"{result.temperature_uncertainty:.2f} eV\n"
+            f"Fit window: {result.fit_start:.1f} to {result.fit_end:.1f} V"
+        )
         self.refresh_plot()
         self._update_controls()
 

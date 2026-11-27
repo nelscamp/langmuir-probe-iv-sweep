@@ -2,9 +2,11 @@
 
 Python software that drives an Aim-TTi SMU4201 over GPIB, plots a Langmuir probe voltage sweep live, and estimates plasma parameters from the recorded trace.
 
+Built and used on a real argon plasma experiment: SCPI instrument control through PyVISA, a PyQt acquisition app with live plotting, and an analysis CLI that fits electron temperature from measured data.
+
 [![CI](https://github.com/nelscamp/langmuir-probe-iv-sweep/actions/workflows/ci.yml/badge.svg)](https://github.com/nelscamp/langmuir-probe-iv-sweep/actions/workflows/ci.yml)
 
-![Langmuir probe sweep application showing a completed I–V trace](docs/img/sweep-gui.png)
+![Langmuir probe sweep application with measured sweep 23 opened and analyzed](docs/img/sweep-gui.png)
 
 ## Why it exists
 

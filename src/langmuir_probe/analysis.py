@@ -179,7 +179,9 @@ def save_plot(
 
     figure = Figure(figsize=(7.2, 4.2), layout="constrained")
     FigureCanvasAgg(figure)
-    draw_trace(points, figure.add_subplot(), semilog=semilog, result=result)
+    draw_trace(
+        points, figure.add_subplot(), semilog=semilog, result=result, microamps=True
+    )
     figure.savefig(path, dpi=150)
 
 
