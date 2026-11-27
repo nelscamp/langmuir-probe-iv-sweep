@@ -29,7 +29,7 @@ python -m pip install -e .
 langmuir-sweep
 ```
 
-For acquisition, attach the SMU4201 through GPIB-USB and install NI-VISA and the appropriate NI GPIB driver. Choose the VISA address and click **Connect**. If the instrument was attached after launch, click **Refresh**. Set the voltage bounds, step size, and current limit, then click **Start**. The plot updates during the sweep, and **Save CSV** retains the acquisition settings, date, and instrument ID. **Pause** holds the last setpoint with output enabled. **Stop** ends acquisition and turns the output off after the current operation returns.
+For acquisition, connect an Aim-TTi SMU4000-series instrument (built and used with the SMU4201) through a GPIB-USB adapter or the SMU's own USB port, and install NI-VISA (plus the NI GPIB driver for GPIB). Choose the VISA address and click **Connect**. If the instrument was attached after launch, click **Refresh**. Set the voltage bounds, step size, current limit, and settle time per point, then click **Start**. The plot updates during the sweep; **Log |I|** shows the raw current on a log axis while it runs. If any reading reaches the current limit, the app warns when the sweep ends, because those points are clipped. **Save CSV** retains the acquisition settings, date, and instrument ID. **Pause** holds the last setpoint with output enabled. **Stop** ends acquisition and turns the output off after the current operation returns.
 
 Use **Open CSV** and **Analyze trace** to review a saved measurement in the same app. You can also analyze the included sweep without an instrument or a desktop session.
 
@@ -43,9 +43,13 @@ Use `--fit-range LOW HIGH` to select the retarding-region fit window in volts. T
 
 ## How it works
 
-The sweep engine sends each setpoint through a small instrument interface. The PyVISA driver uses the SMU4201 SCPI commands `SOURce:VOLTage:FIXed`, `MEASure:PRIMary:LIVEdata?`, and `MEASure:SECondary:LIVEdata?`. The engine waits 100 ms at each setpoint before reading measured voltage and current. Adaptive stepping uses the change in current between successive samples to shrink steps in steep regions and grow them in flatter regions. To add another SMU, implement the interface in `instrument.py`, adapt the SCPI commands to that model, and supply the adapter to the GUI.
+The sweep engine sends each setpoint through a small instrument interface. The PyVISA driver uses the SMU4201 SCPI commands `SOURce:VOLTage:FIXed`, `MEASure:PRIMary:LIVEdata?`, and `MEASure:SECondary:LIVEdata?`. The output turns on at 0 V, so the engine waits 1 s at the first setpoint, then the settle time (100 ms by default) at each later one, before reading measured voltage and current. Adaptive stepping uses the change in current between successive samples to shrink steps in steep regions and grow them in flatter regions. To add another SMU, implement the interface in `instrument.py`, adapt the SCPI commands to that model, and supply the adapter to the GUI.
 
 The analyzer interpolates the zero crossing for floating potential, fits a linear baseline to the low-bias ion current, and estimates the plasma-potential knee from the maximum smoothed slope. It subtracts the ion baseline before fitting ln(electron current) in the retarding region. The reciprocal fitted slope gives electron temperature in eV. Its reported uncertainty is the propagated slope standard error for that trace.
+
+### CSV format
+
+Saved files start with `#` comment lines holding JSON metadata (date, instrument ID, settings, outcome, and the number of points at the current limit), followed by `Voltage (V),Current (A)` columns. Read them in pandas with `pd.read_csv(path, comment="#")`. Files without the comment lines, like the included example, open as well.
 
 ## Results
 
@@ -59,10 +63,10 @@ The tool's automated fit of sweep 23 gives **1.559 ± 0.083 eV** over **55.6–5
 
 ## Limitations
 
-The measured curves lack clean saturation plateaus, and sheath expansion makes the ion current vary with bias. The fitted ion baseline and slope-based knee are estimates, and the temperature fit uncertainty covers regression error. Adaptive stepping was added after data collection and was **not experimentally tested**.
+The measured curves lack clean saturation plateaus, and sheath expansion makes the ion current vary with bias. The fitted ion baseline and slope-based knee are estimates, and the temperature fit uncertainty covers regression error. Adaptive stepping was added after data collection and was **not experimentally tested**. The capstone data was taken with an earlier version of this software. This rewrite sends the same SCPI setup and measurement commands, and its command sequence is covered by tests against a stand-in for the VISA layer, but it has not yet been run on a physical SMU4201. If you run it on hardware, please open an issue with the result.
 
 ## What I built and what the team built
 
-Nelson Campos wrote all of the software. Russell Burns, Nelson Campos, Sam Turner, and Georgia Stone built the probe hardware as a team for the William & Mary capstone from September 2024 to May 2025. Prof. Eugeniy E. Mikhailov advised the project.
+Nelson Campos wrote the acquisition app and the analysis package. An earlier version of this repository also included a theoretical I–V curve window written by Russell Burns, which is not part of this release. Russell Burns, Nelson Campos, Sam Turner, and Georgia Stone built the probe hardware as a team for the William & Mary capstone from September 2024 to May 2025. Prof. Eugeniy E. Mikhailov advised the project.
 
 Released under the [MIT License](LICENSE).

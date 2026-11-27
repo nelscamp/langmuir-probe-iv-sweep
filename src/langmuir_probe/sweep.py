@@ -18,6 +18,8 @@ class SweepSettings:
     adaptive: bool = False
     sensitivity: float = 5e-6
     settle_seconds: float = 0.1
+    # The output turns on at 0 V, so the first setpoint can be a jump of 100 V or more.
+    first_settle_seconds: float = 1.0
 
     def __post_init__(self) -> None:
         values = (
@@ -27,12 +29,13 @@ class SweepSettings:
             self.current_limit,
             self.sensitivity,
             self.settle_seconds,
+            self.first_settle_seconds,
         )
         if not all(map(isfinite, values)):
             raise ValueError("Sweep settings must be finite.")
         if min(self.step, self.current_limit, self.sensitivity) <= 0:
             raise ValueError("Step, current limit, and sensitivity must be positive.")
-        if self.settle_seconds < 0:
+        if min(self.settle_seconds, self.first_settle_seconds) < 0:
             raise ValueError("Settle time cannot be negative.")
         scale = max(abs(self.start), abs(self.end))
         if scale + self.step / 10 == scale:
@@ -70,6 +73,11 @@ class SweepControl:
             return not self._stopped
 
 
+def at_current_limit(current: float, current_limit: float) -> bool:
+    """True when a reading is within 1% of the compliance limit, so it is clipped."""
+    return abs(current) >= 0.99 * current_limit
+
+
 def run_sweep(
     instrument: Instrument,
     settings: SweepSettings,
@@ -86,9 +94,11 @@ def run_sweep(
         instrument.configure(
             settings.current_limit, max(abs(voltage), abs(settings.end))
         )
+        settle = settings.first_settle_seconds
         while control.wait_until_ready():
             instrument.set_voltage(voltage)
-            sleep(settings.settle_seconds)
+            sleep(settle)
+            settle = settings.settle_seconds
             measured_voltage, current = instrument.read_point()
             if not (isfinite(measured_voltage) and isfinite(current)):
                 raise ValueError("Instrument returned a non-finite measurement.")

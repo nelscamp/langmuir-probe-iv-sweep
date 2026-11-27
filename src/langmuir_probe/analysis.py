@@ -121,12 +121,22 @@ def draw_trace(
     axis: "Axes",
     *,
     semilog: bool = False,
+    log_abs: bool = False,
     result: Analysis | None = None,
     microamps: bool = False,
 ) -> None:
+    """Plot a trace. semilog shows the ion-corrected fit and takes priority over
+    log_abs, which shows the raw current magnitude on a log axis."""
     axis.clear()
     axis.set_xlabel("Probe voltage (V)")
-    quantity = "Electron current" if semilog else "Probe current"
+    log_abs = log_abs and not semilog
+    quantity = (
+        "Electron current"
+        if semilog
+        else "|Probe current|"
+        if log_abs
+        else "Probe current"
+    )
     unit = "µA" if microamps else "A"
     scale = 1e6 if microamps else 1
     axis.set_ylabel(f"{quantity} ({unit})")
@@ -155,8 +165,17 @@ def draw_trace(
             label="Retarding-region fit",
         )
     else:
-        axis.plot(voltage, current * scale, color="#146f8c", lw=1.5)
-        axis.axhline(0, color="0.5", lw=0.7)
+        if log_abs:
+            nonzero = current != 0
+            axis.semilogy(
+                voltage[nonzero],
+                np.abs(current[nonzero]) * scale,
+                color="#146f8c",
+                lw=1.5,
+            )
+        else:
+            axis.plot(voltage, current * scale, color="#146f8c", lw=1.5)
+            axis.axhline(0, color="0.5", lw=0.7)
         if result is not None:
             axis.axvline(
                 result.floating_potential,

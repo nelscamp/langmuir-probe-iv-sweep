@@ -13,7 +13,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 from .analysis import Analysis, analyze, draw_trace
 from .data import Point, read_csv, write_csv
 from .instrument import SMU4201, Instrument, visa_resources
-from .sweep import SweepControl, SweepSettings, run_sweep
+from .sweep import SweepControl, SweepSettings, at_current_limit, run_sweep
 
 
 class SweepWorker(QtCore.QThread):
@@ -49,11 +49,12 @@ class MainWindow(QtWidgets.QMainWindow):
         super().__init__()
         self.discover = discover
         self.connect = connect
-        self.settle_seconds = settle_seconds
         self.instrument: Instrument | None = None
         self.worker: SweepWorker | None = None
         self.control = SweepControl()
         self.points: list[Point] = []
+        self.current_limit = float("inf")
+        self.clipped = 0
         self.metadata: dict = {}
         self.result: Analysis | None = None
         self.paused = False
@@ -102,6 +103,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.compliance = self._number(
             settings_form, "Current limit (mA)", 1, 0.001, 100
         )
+        self.settle = self._number(
+            settings_form, "Settle time (ms)", settle_seconds * 1000, 0, 10_000, 0
+        )
         self.sensitivity = self._number(settings_form, "Sensitivity (µA)", 5, 0.1, 25)
         self.adaptive = QtWidgets.QCheckBox("Adaptive steps")
         self.adaptive.toggled.connect(self.sensitivity.setEnabled)
@@ -126,8 +130,14 @@ class MainWindow(QtWidgets.QMainWindow):
         self.export_button.clicked.connect(self.export_csv)
         self.analysis_button = QtWidgets.QPushButton("Analyze trace")
         self.analysis_button.clicked.connect(self.analyze_trace)
-        self.semilog = QtWidgets.QCheckBox("Semi-log electron current")
-        self.semilog.toggled.connect(self.refresh_plot)
+        views = QtWidgets.QHBoxLayout()
+        self.log_abs = QtWidgets.QCheckBox("Log |I|")
+        self.log_abs.setToolTip("Raw current magnitude on a log axis, live")
+        self.semilog = QtWidgets.QCheckBox("Semi-log fit")
+        self.semilog.setToolTip("Ion-corrected electron current and Te fit")
+        for box in (self.log_abs, self.semilog):
+            box.toggled.connect(self.refresh_plot)
+            views.addWidget(box)
         self.summary = QtWidgets.QLabel()
         self.summary.setWordWrap(True)
         self.summary.setMaximumWidth(295)
@@ -135,10 +145,10 @@ class MainWindow(QtWidgets.QMainWindow):
             self.import_button,
             self.export_button,
             self.analysis_button,
-            self.semilog,
-            self.summary,
         ):
             sidebar.addWidget(widget)
+        sidebar.addLayout(views)
+        sidebar.addWidget(self.summary)
         sidebar.addStretch()
 
         self.timer = QtCore.QTimer(self)
@@ -154,9 +164,10 @@ class MainWindow(QtWidgets.QMainWindow):
         value: float,
         minimum: float,
         maximum: float,
+        decimals: int = 3,
     ) -> QtWidgets.QDoubleSpinBox:
         field = QtWidgets.QDoubleSpinBox()
-        field.setDecimals(3)
+        field.setDecimals(decimals)
         field.setRange(minimum, maximum)
         field.setValue(value)
         field.setKeyboardTracking(False)
@@ -236,12 +247,15 @@ class MainWindow(QtWidgets.QMainWindow):
                 current_limit=self.compliance.value() / 1000,
                 adaptive=self.adaptive.isChecked(),
                 sensitivity=self.sensitivity.value() * 1e-6,
-                settle_seconds=self.settle_seconds,
+                settle_seconds=self.settle.value() / 1000,
             )
         except ValueError as error:
             self.status.setText(str(error))
             return
         self.points.clear()
+        self.current_limit = settings.current_limit
+        self.clipped = 0
+        self.status.setToolTip("")
         self._clear_analysis()
         self.metadata = {
             "date": datetime.now(timezone.utc).isoformat(),
@@ -263,6 +277,7 @@ class MainWindow(QtWidgets.QMainWindow):
     @QtCore.pyqtSlot(float, float)
     def _receive_point(self, voltage: float, current: float) -> None:
         self.points.append((voltage, current))
+        self.clipped += at_current_limit(current, self.current_limit)
         self.plot_pending = True
 
     def _update_live_plot(self) -> None:
@@ -274,6 +289,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.points,
             self.axis,
             semilog=self.semilog.isChecked(),
+            log_abs=self.log_abs.isChecked(),
             result=self.result,
             microamps=True,
         )
@@ -313,8 +329,16 @@ class MainWindow(QtWidgets.QMainWindow):
             else "complete"
         )
         self.metadata["outcome"] = outcome
+        self.metadata["points_at_current_limit"] = self.clipped
         if not self.failed:
-            self.status.setText(f"Sweep {outcome}: {len(self.points)} points")
+            message = f"Sweep {outcome}: {len(self.points)} points"
+            if self.clipped:
+                message += f"\nWarning: {self.clipped} at current limit"
+                self.status.setToolTip(
+                    "Those readings are clipped. "
+                    "Raise the limit or narrow the voltage range."
+                )
+            self.status.setText(message)
         self.refresh_plot()
         self._update_controls()
 

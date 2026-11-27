@@ -4,7 +4,14 @@ from threading import Event
 import pytest
 
 from dev.simulated_smu import SimulatedSMU
-from langmuir_probe.sweep import SweepControl, SweepSettings, run_sweep
+from langmuir_probe.sweep import (
+    SweepControl,
+    SweepSettings,
+    at_current_limit,
+    run_sweep,
+)
+
+FAST = {"settle_seconds": 0, "first_settle_seconds": 0}
 
 
 @pytest.mark.parametrize(
@@ -19,7 +26,7 @@ def test_fixed_steps(start: float, end: float, expected: list[float]) -> None:
     smu = SimulatedSMU()
     run_sweep(
         smu,
-        SweepSettings(start, end, 0.3, settle_seconds=0),
+        SweepSettings(start, end, 0.3, **FAST),
         SweepControl(),
         lambda *_: None,
     )
@@ -31,7 +38,7 @@ def test_adaptive_refines_steep_region() -> None:
     smu = SimulatedSMU(noise=0)
     run_sweep(
         smu,
-        SweepSettings(0, 18, adaptive=True, settle_seconds=0),
+        SweepSettings(0, 18, adaptive=True, **FAST),
         SweepControl(),
         lambda *_: None,
     )
@@ -60,7 +67,7 @@ def test_pause_and_stop(resume: bool) -> None:
 
     with ThreadPoolExecutor(max_workers=1) as pool:
         future = pool.submit(
-            run_sweep, smu, SweepSettings(0, 3, settle_seconds=0), control, on_point
+            run_sweep, smu, SweepSettings(0, 3, **FAST), control, on_point
         )
         try:
             assert first_point.wait(2)
@@ -82,5 +89,23 @@ def test_disables_output_on_failure() -> None:
         raise RuntimeError("acquisition interrupted")
 
     with pytest.raises(RuntimeError, match="acquisition interrupted"):
-        run_sweep(smu, SweepSettings(0, 3, settle_seconds=0), SweepControl(), fail)
+        run_sweep(smu, SweepSettings(0, 3, **FAST), SweepControl(), fail)
     assert not smu.output_enabled
+
+
+def test_first_point_waits_longer(monkeypatch: pytest.MonkeyPatch) -> None:
+    waits: list[float] = []
+    monkeypatch.setattr("langmuir_probe.sweep.sleep", waits.append)
+    run_sweep(
+        SimulatedSMU(),
+        SweepSettings(0, 1, 0.5, settle_seconds=0.1, first_settle_seconds=1.0),
+        SweepControl(),
+        lambda *_: None,
+    )
+    assert waits == [1.0, 0.1, 0.1]
+
+
+def test_current_limit_detection() -> None:
+    assert at_current_limit(-1e-3, 1e-3)
+    assert at_current_limit(0.995e-3, 1e-3)
+    assert not at_current_limit(0.9e-3, 1e-3)

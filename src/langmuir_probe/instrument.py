@@ -1,5 +1,6 @@
-"""VISA discovery and the Aim-TTi SMU4201 SCPI adapter."""
+"""VISA discovery and the Aim-TTi SMU4000-series SCPI adapter."""
 
+import re
 from typing import Protocol
 
 
@@ -21,17 +22,24 @@ def visa_resources() -> tuple[str, ...]:
 
 
 class SMU4201:
+    """Aim-TTi SMU4000-series adapter, written for the SMU4201 over VISA."""
+
     def __init__(self, address: str) -> None:
         import pyvisa
 
         self._manager = pyvisa.ResourceManager()
         try:
             self._resource = self._manager.open_resource(address)
-            self._resource.timeout = 3000
+            # Explicit line feeds work on GPIB and on the USB virtual COM port, where
+            # VISA's serial defaults can stall reads until the timeout.
+            self._resource.write_termination = "\n"
+            self._resource.read_termination = "\n"
+            self._resource.timeout = 10_000
             self._identity = self._resource.query("*IDN?").strip()
-            if "SMU4201" not in self._identity.upper():
+            if not re.search(r"SMU4\d{3}", self._identity.upper()):
                 raise ValueError(
-                    f"Expected an SMU4201. Device reported {self._identity!r}."
+                    "Expected an Aim-TTi SMU4000-series instrument. "
+                    f"Device reported {self._identity!r}."
                 )
         except BaseException:
             self._manager.close()

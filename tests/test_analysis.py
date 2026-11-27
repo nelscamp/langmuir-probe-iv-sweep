@@ -14,7 +14,7 @@ def test_recovers_electron_temperature(temperature: float) -> None:
     points = []
     run_sweep(
         instrument,
-        SweepSettings(0, 22, step=0.05, settle_seconds=0),
+        SweepSettings(0, 22, step=0.05, settle_seconds=0, first_settle_seconds=0),
         SweepControl(),
         lambda v, i: points.append((v, i)),
     )
