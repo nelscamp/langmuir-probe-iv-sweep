@@ -70,7 +70,7 @@ class MainWindow(QtWidgets.QMainWindow):
         layout.addLayout(sidebar)
         plot = QtWidgets.QVBoxLayout()
         layout.addLayout(plot, 1)
-        figure = Figure(layout="constrained")
+        figure = Figure(layout="constrained", dpi=130)
         self.canvas = FigureCanvasQTAgg(figure)
         self.axis = figure.add_subplot()
         plot.addWidget(NavigationToolbar2QT(self.canvas, self))

@@ -1,12 +1,12 @@
 # Langmuir Probe I–V Sweep
 
-Python software that drives an Aim-TTi SMU4201 over GPIB, plots a Langmuir probe voltage sweep live, and estimates plasma parameters from the recorded trace.
+Python software that drives an Aim-TTi SMU4201 over GPIB or USB, plots a Langmuir probe voltage sweep live, and estimates plasma parameters from the recorded trace.
 
 Built and used on a real argon plasma experiment: SCPI instrument control through PyVISA, a PyQt acquisition app with live plotting, and an analysis CLI that fits electron temperature from measured data.
 
 [![CI](https://github.com/nelscamp/langmuir-probe-iv-sweep/actions/workflows/ci.yml/badge.svg)](https://github.com/nelscamp/langmuir-probe-iv-sweep/actions/workflows/ci.yml)
 
-![Langmuir probe sweep application with measured sweep 23 opened and analyzed](docs/img/sweep-gui.png)
+![Langmuir probe sweep application with measured sweep 23 opened and analyzed](docs/img/sweep-23-app.png)
 
 ## Why it exists
 
@@ -57,9 +57,9 @@ The capstone recorded 23 single-probe sweeps, including one documented sweep fro
 
 The tool's automated fit of sweep 23 gives **1.559 ± 0.083 eV** over **55.6–59.4 V**, with a floating potential of **51.09 V** and an estimated plasma potential of **59.6 V**. The semi-log plot shows two slopes consistent with a two-temperature, non-Maxwellian electron population, so the fitted temperature depends on the voltage window. The two results also use different fitting methods and sweep counts. [Measured sweep 23 CSV](examples/voltage_current_data_23.csv)
 
-![Measured sweep 23 I–V curve with floating potential and knee estimate](docs/img/sweep-23-iv.png)
-
-![Semi-log electron current for sweep 23 showing two slopes and the automated fit](docs/img/sweep-23-semilog.png)
+| I–V curve | Semi-log electron current |
+|---|---|
+| ![Measured sweep 23 I–V curve with floating potential and knee estimate](docs/img/sweep-23-iv.png) | ![Semi-log electron current for sweep 23 showing two slopes and the automated fit](docs/img/sweep-23-semilog.png) |
 
 ## Limitations
 

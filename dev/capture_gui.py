@@ -1,7 +1,7 @@
 """Capture the README screenshot: the app with measured sweep 23 opened and analyzed.
 
 Run in a desktop session (Qt's offscreen platform renders no text on Windows):
-    python dev/capture_gui.py docs/img/sweep-gui.png
+    python dev/capture_gui.py docs/img/sweep-23-app.png
 """
 
 import sys
@@ -19,7 +19,7 @@ def main() -> int:
     app = QtWidgets.QApplication(sys.argv[:1])
     window = MainWindow(lambda: ("GPIB0::1::INSTR",))
     window.step.setValue(0.2)  # match the recorded sweep's step
-    window.resize(1100, 760)
+    window.resize(1600, 760)
     window.show()
 
     def grab() -> None:
